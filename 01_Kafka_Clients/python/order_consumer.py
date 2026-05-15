@@ -63,11 +63,13 @@ def main() -> int:
                 print(f"Consumer error: {msg.error()}", file=sys.stderr)
                 continue
             value = msg.value()
-            print(
+            line = (
                 f"Consumed order_id={value['order_id']} status={value['status']} "
-                f"customer_id={value['customer_id']} amount_cents={value['amount_cents']} "
-                f"partition={msg.partition()} offset={msg.offset()}"
+                f"customer_id={value['customer_id']} amount_cents={value['amount_cents']}"
             )
+            if value.get("fulfillment_center"):
+                line += f" fulfillment_center={value['fulfillment_center']}"
+            print(f"{line} partition={msg.partition()} offset={msg.offset()}")
             consumed += 1
             if limit > 0 and consumed >= limit:
                 print(f"Reached MAX_MESSAGES={limit}, exiting.")

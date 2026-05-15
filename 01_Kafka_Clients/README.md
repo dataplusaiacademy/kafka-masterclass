@@ -7,7 +7,8 @@ A hands-on example of **Kafka**, **Confluent Schema Registry**, and **Avro** wit
 - Kafka (KRaft) and Schema Registry in Docker
 - Order lifecycle events on topic `orders.events` (`PLACED` → `PAID` → `SHIPPED`)
 - Cross-language Avro: **Python produces**, **Java consumes** in the default demo
-- Same schema registered in Schema Registry for both languages
+- **Schema evolution** (backward-compatible Avro v2 with `fulfillment_center`)
+- **Observability**: Prometheus, Grafana (consumer lag), and Confluent Control Center
 
 ## Prerequisites
 
@@ -19,7 +20,13 @@ Works the same on **Windows, macOS, and Linux**.
 
 ## Quick start
 
-From the project root (`01_Kafka_Clients`):
+### Clients demo (Python produce, Java consume)
+
+```bash
+make demo
+```
+
+Or manually:
 
 ```bash
 docker compose up -d --wait
@@ -28,48 +35,84 @@ docker compose --profile demo run --rm demo-python-producer
 docker wait $cid && docker logs $cid && docker rm $cid
 ```
 
-Or simply: `make demo` (prints consumer logs when finished).
-
-The first command starts Kafka and Schema Registry and creates the `orders.events` topic. The second starts the Java consumer in the background. The third runs the Python producer (after an 8-second delay so the consumer can join the group). You should see nine consumed events in the Java consumer logs (3 orders × 3 statuses).
-
-`make demo` runs all of this and prints the consumer logs when finished.
-
-With Make (optional):
+### Full stack with observability
 
 ```bash
-make demo
+make up-all
+make monitoring   # print UI URLs
+make demo         # generate traffic for Grafana lag panels
 ```
 
-Or step by step: `make up`, then `make demo` (which calls `up` again — safe to run).
+| UI | URL | Login |
+|----|-----|-------|
+| **Control Center** | http://localhost:9021 | (none for local dev) |
+| **Grafana** | http://localhost:3000 | admin / admin |
+| **Prometheus** | http://localhost:9090 | — |
+| **Schema Registry** | http://localhost:8081 | — |
+
+Control Center uses the Confluent Enterprise image — suitable for local learning; production requires a Confluent license.
+
+In Grafana, open the **Kafka Consumer Lag** dashboard (folder: Kafka). Key metrics from kafka-exporter:
+
+- `kafka_consumergroup_lag` — consumer lag by group, topic, and partition
+- `kafka_consumergroup_current_offset` — committed read position
+
+## Schema evolution
+
+v1 schema: [`schemas/order_event.avsc`](schemas/order_event.avsc)  
+v2 schema: [`schemas/order_event_v2.avsc`](schemas/order_event_v2.avsc) — adds optional `fulfillment_center` (default `US-EAST`) for **backward** compatibility.
+
+### Walkthrough
+
+1. Produce v1 events and register the initial schema:
+
+   ```bash
+   make demo
+   ```
+
+2. Set BACKWARD compatibility and register v2:
+
+   ```bash
+   make evolve
+   ```
+
+   This runs `init-schema-compat`, `register-schema-v2`, and `evolve-python-producer` (Python producer with `--evolved`).
+
+3. Consume with an existing v1 consumer (still works — new field has a default):
+
+   ```bash
+   docker compose --profile clients run --rm python-consumer
+   ```
+
+   Python consumer prints `fulfillment_center` when present. Java consumer (v1-generated `OrderEvent`) deserializes v2 payloads via Schema Registry without crashing.
+
+4. Inspect versions in Schema Registry: http://localhost:8081/subjects/orders.events-value/versions
+
+Or in Control Center: **Schema Registry** → `orders.events-value` → view schema versions and compatibility.
+
+### Manual evolve commands
+
+```bash
+docker compose up -d --wait
+docker compose --profile evolve up init-schema-compat register-schema-v2
+docker compose --profile evolve run --rm evolve-python-producer
+```
 
 ## Running individual clients
 
-Start infrastructure first (`docker compose up -d --wait`), then:
+Start infrastructure first (`docker compose up -d --wait` or `make up-all`), then:
 
 | Action | Command |
 |--------|---------|
 | Python producer | `docker compose --profile clients run --rm python-producer` |
+| Python producer (v2) | `docker compose --profile evolve run --rm evolve-python-producer` |
 | Python consumer | `docker compose --profile clients run --rm python-consumer` |
 | Java producer | `docker compose --profile clients run --rm java-producer` |
 | Java consumer | `docker compose --profile clients run --rm java-consumer` |
 
-**Reverse direction (Java produce → Python consume):**
+**Reverse direction (Java produce → Python consume):** run `python-consumer` in one terminal and `java-producer` in another.
 
-Terminal 1:
-
-```bash
-docker compose --profile clients run --rm python-consumer
-```
-
-Terminal 2:
-
-```bash
-docker compose --profile clients run --rm java-producer
-```
-
-Stop the consumer with `Ctrl+C`.
-
-**Consume a fixed number of messages** (container exits automatically):
+**Consume a fixed number of messages:**
 
 ```bash
 docker compose --profile clients run --rm -e MAX_MESSAGES=9 java-consumer
@@ -77,52 +120,57 @@ docker compose --profile clients run --rm -e MAX_MESSAGES=9 java-consumer
 
 ## Configuration
 
-Set on client containers via Compose (defaults shown):
-
 | Variable | Default |
 |----------|---------|
 | `KAFKA_BOOTSTRAP_SERVERS` | `kafka:29092` |
 | `SCHEMA_REGISTRY_URL` | `http://schema-registry:8081` |
+| `SCHEMA_PATH` | `/app/schemas/order_event.avsc` (override for v2) |
 | `MAX_MESSAGES` | unset (consume until stopped) |
 
-Host ports for optional debugging: Kafka `localhost:9092`, Schema Registry `http://localhost:8081`.
+Host ports: Kafka `9092`, Schema Registry `8081`, Control Center `9021`, Grafana `3000`, Prometheus `9090`.
 
-## Inspecting the stack
+## Compose profiles
 
-```bash
-docker compose ps
-```
-
-Schema Registry subjects: [http://localhost:8081/subjects](http://localhost:8081/subjects) (browser or `curl` on the host).
-
-Expected subject after producing: `orders.events-value`.
+| Profile | Services |
+|---------|----------|
+| (default) | `kafka`, `schema-registry`, `init-topic` |
+| `clients` | Python/Java producers and consumers |
+| `demo` | Cross-language demo services |
+| `observability` | `kafka-exporter`, `prometheus`, `grafana`, `control-center` |
+| `evolve` | Schema compatibility, v2 registration, evolved producer |
 
 ## Troubleshooting
 
 | Issue | What to try |
 |-------|-------------|
-| `network ... not found` | Stale Docker state from a previous run. Run `make reset` or: `docker compose --profile clients --profile demo down --remove-orphans` then `docker compose up -d --wait` and retry the demo |
-| Port 9092 or 8081 in use | Stop other Kafka stacks; `docker compose down` |
-| Docker not running | Start Docker Desktop / system Docker service |
-| Demo shows no consumed messages | Run `docker compose up -d --wait` first; re-run demo (increase sleep in `demo-python-producer` if consumer is slow to join) |
-| Image build fails | Check network access for Gradle/Maven and pip; `docker compose --profile clients --profile demo build` |
-| `init-topic` failed | Ensure Kafka is healthy: `docker compose logs kafka` |
+| `network ... not found` | `make reset` or `docker compose --profile clients --profile demo --profile observability --profile evolve down --remove-orphans` then `make up` |
+| Port conflicts | Stop other stacks; `make down` |
+| Demo shows no consumed messages | `make up` first; re-run `make demo` |
+| Grafana shows no lag | Run `make demo` or start a consumer; wait ~30s for scrape |
+| Control Center slow to start | First boot creates internal topics; check `docker compose logs control-center` |
+| Schema v2 registration fails | Run `make demo` first (creates subject), or check `register-schema-v2` logs |
+| Evolve incompatible | Subject must be BACKWARD-compatible; run `init-schema-compat` before v2 |
 
-Do **not** use `docker compose --profile demo up --abort-on-container-exit` without naming only demo services — that pattern can stop infrastructure when `init-topic` exits and leave broken network references.
+Do **not** use `docker compose --profile demo up --abort-on-container-exit` without naming only demo services.
 
 ## Cleanup
 
 ```bash
-docker compose --profile clients --profile demo down --remove-orphans
-docker compose down -v   # also remove volumes if you want a clean slate
+make down
+# or remove volumes:
+docker compose down -v
 ```
 
 ## Project layout
 
 ```
-docker-compose.yml     # infra, init-topic, client services, demo profile
-schemas/               # shared Avro schema
-python/                # Python producer & consumer + Dockerfile
-java/                  # Java clients + Dockerfile (Gradle build inside image)
-Makefile               # optional shortcuts (all invoke docker compose)
+docker-compose.yml
+schemas/                    # order_event.avsc (v1), order_event_v2.avsc
+monitoring/
+  prometheus/prometheus.yml
+  grafana/provisioning/     # datasource + Kafka lag dashboard
+  scripts/                  # schema compat + v2 registration (curl)
+python/
+java/
+Makefile
 ```
