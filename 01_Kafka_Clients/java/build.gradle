@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.davidmc24.gradle.plugin.avro' version '1.9.1'
+}
+
+group = 'com.masterclass.kafka'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://packages.confluent.io/maven/'
+    }
+}
+
+def confluentVersion = '7.6.1'
+
+dependencies {
+    implementation "io.confluent:kafka-avro-serializer:${confluentVersion}"
+    implementation "org.apache.kafka:kafka-clients:3.6.2"
+    implementation 'org.slf4j:slf4j-simple:2.0.13'
+}
+
+avro {
+    createSetters = false
+    fieldVisibility = 'PRIVATE'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated-main-avro-java', 'src/main/java'
+        }
+    }
+}
+
+tasks.named('generateAvroJava') {
+    source = files("${rootDir}/../schemas")
+}
+
+application {
+    mainClass = 'com.masterclass.kafka.OrderConsumer'
+}
+
+tasks.named('run') {
+    if (project.hasProperty('mainClass')) {
+        mainClass = project.property('mainClass').toString()
+    }
+}

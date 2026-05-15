@@ -1,0 +1,143 @@
+name: kafka-clients
+
+x-client-env: &client-env
+  KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+x-python-build: &python-build
+  context: .
+  dockerfile: python/Dockerfile
+
+x-java-build: &java-build
+  context: .
+  dockerfile: java/Dockerfile
+
+x-client-deps: &client-deps
+  depends_on:
+    kafka:
+      condition: service_healthy
+    init-topic:
+      condition: service_completed_successfully
+    schema-registry:
+      condition: service_healthy
+
+networks:
+  kafka-net:
+    driver: bridge
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    hostname: kafka
+    networks: [kafka-net]
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    hostname: schema-registry
+    networks: [kafka-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 10s
+
+  init-topic:
+    image: confluentinc/cp-kafka:7.6.1
+    networks: [kafka-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+          --topic orders.events --partitions 3 --replication-factor 1
+        echo "Topic orders.events is ready."
+
+  python-producer:
+    profiles: [clients]
+    build: *python-build
+    networks: [kafka-net]
+    environment: *client-env
+    <<: *client-deps
+    command: ["python", "order_producer.py", "--orders", "3"]
+
+  python-consumer:
+    profiles: [clients]
+    build: *python-build
+    networks: [kafka-net]
+    environment: *client-env
+    <<: *client-deps
+    command: ["python", "order_consumer.py"]
+
+  java-producer:
+    profiles: [clients]
+    build: *java-build
+    networks: [kafka-net]
+    environment:
+      <<: *client-env
+      MAIN_CLASS: com.masterclass.kafka.OrderProducer
+    <<: *client-deps
+
+  java-consumer:
+    profiles: [clients]
+    build: *java-build
+    networks: [kafka-net]
+    environment:
+      <<: *client-env
+      MAIN_CLASS: com.masterclass.kafka.OrderConsumer
+    <<: *client-deps
+
+  demo-java-consumer:
+    profiles: [demo]
+    build: *java-build
+    networks: [kafka-net]
+    environment:
+      <<: *client-env
+      MAIN_CLASS: com.masterclass.kafka.OrderConsumer
+      MAX_MESSAGES: "9"
+      CONSUMER_GROUP_ID: order-fulfillment-java-demo
+      AUTO_OFFSET_RESET: latest
+    <<: *client-deps
+
+  demo-python-producer:
+    profiles: [demo]
+    build: *python-build
+    networks: [kafka-net]
+    environment: *client-env
+    <<: *client-deps
+    command: ["sh", "-c", "sleep 8 && python order_producer.py --orders 3"]
