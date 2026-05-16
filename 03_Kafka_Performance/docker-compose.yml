@@ -1,0 +1,185 @@
+name: kafka-performance
+
+x-kafka-broker-env: &kafka-broker-env
+  CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+  KAFKA_PROCESS_ROLES: broker,controller
+  KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:29093,2@kafka2:29093,3@kafka3:29093
+  KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_INTERNAL://0.0.0.0:29092
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+  KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+  KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+  KAFKA_MIN_INSYNC_REPLICAS: 2
+  KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+  KAFKA_CONFLUENT_CONSUMER_LAG_EMITTER_ENABLED: "true"
+  EXTRA_ARGS: "-javaagent:/usr/share/jmx-exporter/jmx_prometheus_javaagent-1.1.0.jar=9404:/usr/share/jmx-exporter/kafka_broker.yml"
+
+x-kafka-healthcheck: &kafka-healthcheck
+  test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+  interval: 5s
+  timeout: 10s
+  retries: 18
+  start_period: 30s
+
+x-perf-deps: &perf-deps
+  depends_on:
+    kafka1:
+      condition: service_healthy
+    kafka2:
+      condition: service_healthy
+    kafka3:
+      condition: service_healthy
+    init-perf-topic:
+      condition: service_completed_successfully
+
+networks:
+  kafka-perf-net:
+    driver: bridge
+
+services:
+  kafka1:
+    build:
+      context: .
+      dockerfile: brokers/Dockerfile
+    hostname: kafka1
+    networks: [kafka-perf-net]
+    ports:
+      - "39092:9092"
+      - "19404:9404"
+    environment:
+      <<: *kafka-broker-env
+      KAFKA_NODE_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:39092,PLAINTEXT_INTERNAL://kafka1:29092
+    healthcheck: *kafka-healthcheck
+
+  kafka2:
+    build:
+      context: .
+      dockerfile: brokers/Dockerfile
+    hostname: kafka2
+    networks: [kafka-perf-net]
+    ports:
+      - "39093:9092"
+      - "19405:9404"
+    environment:
+      <<: *kafka-broker-env
+      KAFKA_NODE_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:39093,PLAINTEXT_INTERNAL://kafka2:29092
+    healthcheck: *kafka-healthcheck
+
+  kafka3:
+    build:
+      context: .
+      dockerfile: brokers/Dockerfile
+    hostname: kafka3
+    networks: [kafka-perf-net]
+    ports:
+      - "39094:9092"
+      - "19406:9404"
+    environment:
+      <<: *kafka-broker-env
+      KAFKA_NODE_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:39094,PLAINTEXT_INTERNAL://kafka3:29092
+    healthcheck: *kafka-healthcheck
+
+  init-perf-topic:
+    image: confluentinc/cp-kafka:7.6.1
+    networks: [kafka-perf-net]
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    volumes:
+      - ./scripts:/scripts:ro
+    environment:
+      BOOTSTRAP: kafka1:29092,kafka2:29092,kafka3:29092
+      TOPIC: perf.test
+      PARTITIONS: "12"
+      REPLICATION_FACTOR: "3"
+    entrypoint: ["/bin/sh", "/scripts/init-perf-topic.sh"]
+    restart: "no"
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    hostname: prometheus
+    networks: [kafka-perf-net]
+    depends_on:
+      kafka1:
+        condition: service_healthy
+    ports:
+      - "19090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    hostname: grafana
+    networks: [kafka-perf-net]
+    depends_on:
+      - prometheus
+    ports:
+      - "13000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+
+  perf-producer:
+    profiles: [perf]
+    image: confluentinc/cp-kafka:7.6.1
+    networks: [kafka-perf-net]
+    <<: *perf-deps
+    volumes:
+      - ./client-configs:/client-configs:ro
+      - ./scripts:/scripts:ro
+    environment:
+      BOOTSTRAP: kafka1:29092,kafka2:29092,kafka3:29092
+      SCENARIO: throughput
+      TOPIC: perf.test
+      NUM_RECORDS: "5000000"
+      RECORD_SIZE: "1024"
+      THROUGHPUT: "-1"
+    entrypoint: ["/bin/sh", "/scripts/run-producer-perf.sh"]
+
+  perf-consumer:
+    profiles: [perf]
+    image: confluentinc/cp-kafka:7.6.1
+    networks: [kafka-perf-net]
+    <<: *perf-deps
+    volumes:
+      - ./client-configs:/client-configs:ro
+      - ./scripts:/scripts:ro
+    environment:
+      BOOTSTRAP: kafka1:29092,kafka2:29092,kafka3:29092
+      SCENARIO: throughput
+      TOPIC: perf.test
+      MESSAGES: "5000000"
+      FETCH_SIZE: "1048576"
+      THREADS: "1"
+    entrypoint: ["/bin/sh", "/scripts/run-consumer-perf.sh"]
+
+  perf-e2e-latency:
+    profiles: [perf]
+    image: confluentinc/cp-kafka:7.6.1
+    networks: [kafka-perf-net]
+    <<: *perf-deps
+    volumes:
+      - ./client-configs:/client-configs:ro
+      - ./scripts:/scripts:ro
+    environment:
+      BOOTSTRAP: kafka1:29092,kafka2:29092,kafka3:29092
+      SCENARIO: latency
+      TOPIC: perf.test
+      NUM_RECORDS: "100000"
+      RECORD_SIZE: "1024"
+      ACKS: "1"
+    entrypoint: ["/bin/sh", "/scripts/run-e2e-latency.sh"]
