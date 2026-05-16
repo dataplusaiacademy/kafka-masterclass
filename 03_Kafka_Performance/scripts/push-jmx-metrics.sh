@@ -8,11 +8,11 @@ PUSH_PATH="/metrics/job/kafka-client/instance/${INSTANCE}/env/lab/hostname/${INS
 curl -sf -X DELETE "${PUSHGATEWAY_URL}/metrics/job/kafka-client/instance/${INSTANCE}/env/lab" >/dev/null 2>&1 || true
 
 push_metrics() {
-  metrics=$(curl -sf http://127.0.0.1:7071/metrics 2>/dev/null) || return 0
-  if ! printf '%s' "$metrics" | grep -qE '^kafka_(producer|consumer)'; then
+  # Stream directly — a shell variable + printf corrupts the payload (HTTP 400).
+  if ! curl -sf http://127.0.0.1:7071/metrics 2>/dev/null | grep -qE '^kafka_(producer|consumer)'; then
     return 0
   fi
-  if printf '%s' "$metrics" | curl -sf --data-binary @- "${PUSHGATEWAY_URL}${PUSH_PATH}"; then
+  if curl -sf http://127.0.0.1:7071/metrics 2>/dev/null | curl -sf --data-binary @- "${PUSHGATEWAY_URL}${PUSH_PATH}"; then
     return 0
   fi
   echo "Pushgateway push failed for ${INSTANCE} (url=${PUSHGATEWAY_URL}${PUSH_PATH})" >&2
