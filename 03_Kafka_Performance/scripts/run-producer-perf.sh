@@ -15,9 +15,18 @@ fi
 
 echo "Producer perf: scenario=$SCENARIO topic=$TOPIC records=$NUM_RECORDS size=$RECORD_SIZE"
 
-exec kafka-producer-perf-test \
+kafka-producer-perf-test \
   --topic "$TOPIC" \
   --num-records "$NUM_RECORDS" \
   --record-size "$RECORD_SIZE" \
   --throughput "$THROUGHPUT" \
-  --producer.config "$CFG"
+  --producer.config "$CFG" &
+PID=$!
+
+. /scripts/wait-for-jmx.sh
+sh /scripts/push-jmx-metrics.sh "$PID" &
+PUSH_PID=$!
+
+wait "$PID"
+wait "$PUSH_PID" 2>/dev/null || true
+sh /scripts/print-grafana-hint.sh producer

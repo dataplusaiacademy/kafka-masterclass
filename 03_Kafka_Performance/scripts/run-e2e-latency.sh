@@ -17,7 +17,15 @@ ACKS="${ACKS:-1}"
 echo "E2E latency: topic=$TOPIC records=$NUM_RECORDS acks=$ACKS"
 
 if [ -f "$CFG" ]; then
-  exec kafka-e2e-latency "$BOOTSTRAP" "$TOPIC" "$NUM_RECORDS" "$ACKS" "$RECORD_SIZE" "$CFG"
+  kafka-e2e-latency "$BOOTSTRAP" "$TOPIC" "$NUM_RECORDS" "$ACKS" "$RECORD_SIZE" "$CFG" &
+else
+  kafka-e2e-latency "$BOOTSTRAP" "$TOPIC" "$NUM_RECORDS" "$ACKS" "$RECORD_SIZE" &
 fi
+PID=$!
 
-exec kafka-e2e-latency "$BOOTSTRAP" "$TOPIC" "$NUM_RECORDS" "$ACKS" "$RECORD_SIZE"
+. /scripts/wait-for-jmx.sh
+sh /scripts/push-jmx-metrics.sh "$PID" &
+PUSH_PID=$!
+
+wait "$PID"
+wait "$PUSH_PID" 2>/dev/null || true

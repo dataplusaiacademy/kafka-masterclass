@@ -47,7 +47,7 @@ Run the throughput scenario (producer then consumer):
 make perf-throughput
 ```
 
-Open Grafana at http://localhost:13000 (login **admin** / **admin**). In folder **Kafka**, open **Kafka cluster (KRaft)** and **Kafka topics (KRaft)**. After perf runs, check **Kafka producer** / **Kafka consumer** dashboards.
+Open Grafana at http://localhost:13000 (login **admin** / **admin**). In folder **Kafka**, open **Kafka cluster (KRaft)** and **Kafka topics (KRaft)**. After perf runs, use **Kafka Perf (lab)** for immediate charts (no dropdowns) or **Kafka producer** / **Kafka consumer** (defaults pre-set for the throughput lab).
 
 Allow ~2 minutes after broker start for JMX rules (`startDelaySeconds` in [`monitoring/jmx-exporter/kafka_broker.yml`](monitoring/jmx-exporter/kafka_broker.yml)) before all panels populate.
 
@@ -59,6 +59,7 @@ Allow ~2 minutes after broker start for JMX rules (`startDelaySeconds` in [`moni
 | Kafka broker 2 | `localhost:39093` |
 | Kafka broker 3 | `localhost:39094` |
 | Prometheus | http://localhost:19090 |
+| Pushgateway | http://localhost:19091 |
 | Grafana | http://localhost:13000 (admin / admin) |
 | JMX metrics (kafka1) | http://localhost:19404/metrics |
 
@@ -116,22 +117,39 @@ docker compose run --rm -e PARTITIONS=24 -e REPLICATION_FACTOR=3 init-perf-topic
 
 ## Monitoring
 
-Metrics flow: broker JMX → JMX Exporter (`:9404`) → Prometheus → Grafana.
+**Brokers:** JMX Exporter (`:9404`) → Prometheus scrape → Grafana.
 
-Prometheus targets: `kafka1:9404`, `kafka2:9404`, `kafka3:9404` ([`monitoring/prometheus/prometheus.yml`](monitoring/prometheus/prometheus.yml)).
+**Perf clients:** JMX on `:7071` via `KAFKA_OPTS` in the perf image ([`perf/Dockerfile`](perf/Dockerfile)); metrics are **pushed** to [Pushgateway](https://github.com/prometheus/pushgateway) during the run, then scraped by Prometheus (`honor_labels: true`). Based on the JMX agent pattern from [Platformatory kafka-performance-suite](https://github.com/Platformatory/kafka-performance-suite) (adapted for ephemeral `compose run` jobs).
 
-Recommended dashboards (provisioned under folder **Kafka**):
+Prometheus broker targets: `kafka1:9404`, `kafka2:9404`, `kafka3:9404` ([`monitoring/prometheus/prometheus.yml`](monitoring/prometheus/prometheus.yml)).
+
+Recommended dashboards (folder **Kafka**):
 
 | Dashboard | Use |
 |-----------|-----|
 | Kafka cluster (KRaft) | Broker CPU, network, request rates |
 | Kafka topics (KRaft) | Per-topic throughput |
 | Kraft | Controller / metadata view |
-| Kafka producer / Kafka consumer | While perf containers run |
+| **Kafka Perf (lab)** | Fixed queries for `perf-producer` / `perf-consumer` — no template variables |
+| Kafka producer | During `perf-producer` (throughput, durability, …) |
+| Kafka consumer | During `perf-consumer` |
 
-On each dashboard, set the **Environment** variable to **`lab`** (matches the `env: lab` label on Prometheus scrape targets). If panels show no data but the datasource is healthy, this dropdown is usually unset.
+**Quick check:** after a perf run, `make metrics-check` queries Prometheus for `kafka_producer_app{env="lab"}` / `kafka_consumer_app{env="lab"}`.
 
-Upstream reference: [Confluent jmxexporter-prometheus-grafana](https://github.com/confluentinc/jmx-monitoring-stacks/tree/main/jmxexporter-prometheus-grafana).
+**Grafana variables** on Confluent producer/consumer dashboards are **pre-set** for the default throughput scenario (`env=lab`, `instance=perf-producer` or `perf-consumer`, matching [`client-configs/throughput/`](client-configs/throughput/)). Change them if you use another `SCENARIO=`.
+
+| Variable | Typical value (throughput) |
+|----------|----------------|
+| Environment | `lab` |
+| Client ID | `perf-producer-throughput`, `perf-consumer-throughput`, etc. (from [`client-configs/<scenario>/`](client-configs/)) |
+| Instance | `perf-producer` or `perf-consumer` (`METRICS_INSTANCE` in Compose) |
+| Hostname | Same as instance (from Pushgateway / Prometheus relabel) |
+
+**Hostname / CPU / JVM rows** on Confluent producer/consumer dashboards may stay empty: [`kafka_client.yml`](monitoring/jmx-exporter/kafka_client.yml) exports Kafka client MBeans only, not `process_*` JVM metrics. Use the **Kafka producer metrics** / **Kafka consumer metrics** sections or **Kafka Perf (lab)**.
+
+Example: run `make perf-producer`, open **Kafka Perf (lab)** or **Kafka producer** (variables already selected for throughput).
+
+Upstream references: [Confluent jmx-monitoring-stacks](https://github.com/confluentinc/jmx-monitoring-stacks/tree/main/jmxexporter-prometheus-grafana), [Platformatory client metrics](https://github.com/Platformatory/kafka-performance-suite/blob/main/kafka-performance-metrics-chart/templates/producer-job.yaml).
 
 ## Operational notes
 
@@ -173,15 +191,19 @@ Official Confluent **linux/amd64** images usually run under Docker Desktop emula
 |-------|----------------|
 | Port already allocated | Change left side of `ports:` in [`docker-compose.yml`](docker-compose.yml) (`39092`, `13000`, `19090`, …). |
 | Brokers not healthy | `docker compose logs kafka1` (and kafka2/3); ensure all three nodes share the same `CLUSTER_ID` and quorum voters. |
-| Empty Grafana panels | Wait for JMX `startDelaySeconds`; confirm http://localhost:19404/metrics returns data; check Prometheus **Targets** at :19090; set **Environment** to `lab`. |
+| Empty Grafana panels (brokers) | Wait for JMX `startDelaySeconds`; confirm http://localhost:19404/metrics returns data; check Prometheus **Targets** at :19090; set **Environment** to `lab`. |
+| Empty **Kafka Producer** / **Consumer** | Use **Kafka Perf (lab)** or confirm variables: **Environment**=`lab`, **Instance**=`perf-producer`/`perf-consumer`, **Client ID** from your scenario; run `make metrics-check`. |
+| Hostname / CPU panels N/A on client dashboards | Expected without JVM rules in `kafka_client.yml`; use Kafka client metric rows or **Kafka Perf (lab)**. |
 | `Datasource ${Prometheus} was not found` | `docker compose restart grafana` after pulling latest dashboard/datasource provisioning (UID `prometheus`). |
 | `NOT_ENOUGH_REPLICAS` on produce | Cluster needs 3 brokers up for `acks=all` with `min.insync.replicas=2`. |
 | `perf-consumer` exits quickly | Topic empty — run producer first. |
+| No Kafka producer/consumer metrics | Stack must be up (`make up`); Pushgateway must be running; run perf while brokers are healthy; check http://localhost:19091 for `kafka_producer_*` with `env="lab"`; `make metrics-check`. |
 
 ## Attribution
 
-- JMX rule file and Grafana dashboard JSON from [confluentinc/jmx-monitoring-stacks](https://github.com/confluentinc/jmx-monitoring-stacks) (Apache 2.0).
+- JMX rule files and Grafana dashboard JSON from [confluentinc/jmx-monitoring-stacks](https://github.com/confluentinc/jmx-monitoring-stacks) (Apache 2.0).
 - JMX Prometheus javaagent from [prometheus/jmx_exporter](https://github.com/prometheus/jmx_exporter).
+- Client metrics agent pattern from [Platformatory/kafka-performance-suite](https://github.com/Platformatory/kafka-performance-suite).
 
 ## Project layout
 
@@ -190,14 +212,18 @@ docker-compose.yml
 Makefile
 README.md
 brokers/Dockerfile
+perf/Dockerfile
 client-configs/
   throughput/ latency/ durability/ availability/
 monitoring/
   jmx-exporter/kafka_broker.yml
+  jmx-exporter/kafka_client.yml
   prometheus/prometheus.yml
   grafana/provisioning/
 scripts/
   init-perf-topic.sh
+  wait-for-jmx.sh
+  push-jmx-metrics.sh
   run-producer-perf.sh
   run-consumer-perf.sh
   run-e2e-latency.sh

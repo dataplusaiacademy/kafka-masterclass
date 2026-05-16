@@ -17,11 +17,20 @@ fi
 
 echo "Consumer perf: scenario=$SCENARIO topic=$TOPIC messages=$MESSAGES"
 
-exec kafka-consumer-perf-test \
+kafka-consumer-perf-test \
   --bootstrap-server "$BOOTSTRAP" \
   --topic "$TOPIC" \
   --messages "$MESSAGES" \
   --fetch-size "$FETCH_SIZE" \
   --threads "$THREADS" \
   --group "$GROUP" \
-  --consumer.config "$CFG"
+  --consumer.config "$CFG" &
+PID=$!
+
+. /scripts/wait-for-jmx.sh
+sh /scripts/push-jmx-metrics.sh "$PID" &
+PUSH_PID=$!
+
+wait "$PID"
+wait "$PUSH_PID" 2>/dev/null || true
+sh /scripts/print-grafana-hint.sh consumer

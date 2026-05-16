@@ -2144,7 +2144,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "The average fraction of time the consumer’s poll() is idle as opposed to waiting for the user code to process records.",
+          "description": "The average fraction of time the consumer\u2019s poll() is idle as opposed to waiting for the user code to process records.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2689,7 +2689,15 @@
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": [
+            "perf-consumer-throughput"
+          ],
+          "value": [
+            "perf-consumer-throughput"
+          ]
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
@@ -2715,7 +2723,15 @@
         "useTags": false
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": [
+            "lab"
+          ],
+          "value": [
+            "lab"
+          ]
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
@@ -2741,7 +2757,15 @@
         "useTags": false
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": [
+            "perf-consumer-throughput"
+          ],
+          "value": [
+            "perf-consumer-throughput"
+          ]
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
@@ -2767,7 +2791,15 @@
         "useTags": false
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": [
+            "perf.test"
+          ],
+          "value": [
+            "perf.test"
+          ]
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
@@ -2793,7 +2825,15 @@
         "useTags": false
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": [
+            "perf-consumer"
+          ],
+          "value": [
+            "perf-consumer"
+          ]
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
@@ -2816,7 +2856,15 @@
         "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": [
+            "perf-consumer"
+          ],
+          "value": [
+            "perf-consumer"
+          ]
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"

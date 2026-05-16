@@ -1,4 +1,4 @@
-.PHONY: help up down reset urls perf-throughput perf-latency perf-durability perf-availability perf-producer perf-consumer perf-e2e
+.PHONY: help up down reset urls metrics-check perf-throughput perf-latency perf-durability perf-availability perf-producer perf-consumer perf-e2e
 
 DOCKER_COMPOSE := docker compose
 COMPOSE_PERF := $(DOCKER_COMPOSE) --profile perf
@@ -12,6 +12,7 @@ help:
 	@echo "  make down                Stop containers"
 	@echo "  make reset               down -v (wipe broker data)"
 	@echo "  make urls                Print UI and bootstrap URLs"
+	@echo "  Perf runs export client JMX to Grafana Kafka producer/consumer dashboards"
 	@echo "  make perf-throughput     High-throughput producer then consumer"
 	@echo "  make perf-latency        Low-latency producer + e2e latency tool"
 	@echo "  make perf-durability     acks=all / idempotent producer load"
@@ -19,6 +20,7 @@ help:
 	@echo "  make perf-producer       Run producer (SCENARIO=throughput)"
 	@echo "  make perf-consumer       Run consumer (SCENARIO=throughput)"
 	@echo "  make perf-e2e            End-to-end latency (SCENARIO=latency)"
+	@echo "  make metrics-check       Verify perf client metrics reached Prometheus"
 
 up:
 	$(DOCKER_COMPOSE) up -d --wait
@@ -33,7 +35,13 @@ urls:
 	@echo "Kafka bootstrap (host):  localhost:39092,localhost:39093,localhost:39094"
 	@echo "Grafana:                 http://localhost:13000  (admin / admin)"
 	@echo "Prometheus:              http://localhost:19090"
+	@echo "Pushgateway:             http://localhost:19091"
 	@echo "Broker JMX metrics:      http://localhost:19404/metrics (kafka1; 19405/19406 for kafka2/3)"
+
+PROM_URL ?= http://localhost:19090
+
+metrics-check:
+	@python3 scripts/metrics-check.py "$(PROM_URL)"
 
 perf-throughput: up
 	$(COMPOSE_PERF) run --rm -e SCENARIO=throughput \

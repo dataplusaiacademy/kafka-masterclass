@@ -1,0 +1,156 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "id": 100,
+      "panels": [],
+      "title": "Producer (perf-producer)",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 1},
+      "id": 1,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_producer_producer_metrics_record_send{env=\"lab\",job=\"kafka-client\",instance=\"perf-producer\"}[1m]))",
+          "legendFormat": "record send/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Producer throughput (records/s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 1},
+      "id": 2,
+      "targets": [
+        {
+          "expr": "kafka_producer_producer_metrics_request_latency_avg{env=\"lab\",job=\"kafka-client\",instance=\"perf-producer\"}",
+          "legendFormat": "{{client_id}} avg latency",
+          "refId": "A"
+        }
+      ],
+      "title": "Producer request latency (avg)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+      "id": 3,
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_producer_producer_metrics_outgoing_byte{env=\"lab\",job=\"kafka-client\",instance=\"perf-producer\"}[1m]))",
+          "legendFormat": "outgoing bytes/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Producer outgoing byte rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+      "id": 4,
+      "targets": [
+        {
+          "expr": "kafka_producer_producer_metrics_record_error_rate{env=\"lab\",job=\"kafka-client\",instance=\"perf-producer\"}",
+          "legendFormat": "{{client_id}} errors/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Producer record error rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 17},
+      "id": 101,
+      "panels": [],
+      "title": "Consumer (perf-consumer)",
+      "type": "row"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18},
+      "id": 5,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_consumer_consumer_fetch_manager_metrics_records_consumed{env=\"lab\",job=\"kafka-client\",instance=\"perf-consumer\"}[1m]))",
+          "legendFormat": "records consumed/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer throughput (records/s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18},
+      "id": 6,
+      "targets": [
+        {
+          "expr": "kafka_consumer_consumer_fetch_manager_metrics_fetch_latency_avg{env=\"lab\",job=\"kafka-client\",instance=\"perf-consumer\"}",
+          "legendFormat": "{{client_id}} fetch latency",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer fetch latency (avg)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 26},
+      "id": 7,
+      "targets": [
+        {
+          "expr": "kafka_consumer_consumer_coordinator_metrics_commit_rate{env=\"lab\",job=\"kafka-client\",instance=\"perf-consumer\"}",
+          "legendFormat": "{{client_id}} commit rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer commit rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 26},
+      "id": 8,
+      "targets": [
+        {
+          "expr": "sum(rate(kafka_consumer_consumer_fetch_manager_metrics_bytes_consumed{env=\"lab\",job=\"kafka-client\",instance=\"perf-consumer\"}[1m]))",
+          "legendFormat": "bytes consumed/s",
+          "refId": "A"
+        }
+      ],
+      "title": "Consumer bytes consumed rate",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["kafka", "perf", "lab"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "title": "Kafka Perf (lab)",
+  "uid": "kafka-perf-lab",
+  "version": 1
+}

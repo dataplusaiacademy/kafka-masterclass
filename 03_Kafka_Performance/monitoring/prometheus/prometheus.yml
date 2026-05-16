@@ -15,3 +15,13 @@ scrape_configs:
           - kafka3:9404
         labels:
           env: lab
+
+  - job_name: pushgateway
+    honor_labels: true
+    static_configs:
+      - targets: ["pushgateway:9091"]
+    metric_relabel_configs:
+      - source_labels: [instance]
+        target_label: hostname
+        regex: "(.+)"
+        replacement: "$1"

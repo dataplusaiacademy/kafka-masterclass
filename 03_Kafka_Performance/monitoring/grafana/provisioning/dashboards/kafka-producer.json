@@ -3410,6 +3410,11 @@
         "multi": true,
         "name": "client_id",
         "options": [],
+        "current": {
+          "selected": true,
+          "text": ["perf-producer-throughput"],
+          "value": ["perf-producer-throughput"]
+        },
         "query": {
           "query": "label_values(kafka_producer_app, client_id)",
           "refId": "StandardVariableQuery"

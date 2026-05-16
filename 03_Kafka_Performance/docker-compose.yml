@@ -25,6 +25,19 @@ x-kafka-healthcheck: &kafka-healthcheck
   retries: 18
   start_period: 30s
 
+x-perf-build: &perf-build
+  build:
+    context: .
+    dockerfile: perf/Dockerfile
+
+x-perf-metrics-env: &perf-metrics-env
+  KAFKA_OPTS: "-javaagent:/usr/share/jmx-exporter/jmx_prometheus_javaagent-1.1.0.jar=7071:/usr/share/jmx-exporter/kafka_client.yml"
+
+x-perf-volumes: &perf-volumes
+  volumes:
+    - ./client-configs:/client-configs:ro
+    - ./scripts:/scripts:ro
+
 x-perf-deps: &perf-deps
   depends_on:
     kafka1:
@@ -35,6 +48,10 @@ x-perf-deps: &perf-deps
       condition: service_healthy
     init-perf-topic:
       condition: service_completed_successfully
+    pushgateway:
+      condition: service_started
+    prometheus:
+      condition: service_started
 
 networks:
   kafka-perf-net:
@@ -106,6 +123,13 @@ services:
     entrypoint: ["/bin/sh", "/scripts/init-perf-topic.sh"]
     restart: "no"
 
+  pushgateway:
+    image: prom/pushgateway:v1.7.0
+    hostname: pushgateway
+    networks: [kafka-perf-net]
+    ports:
+      - "19091:9091"
+
   prometheus:
     image: prom/prometheus:v2.51.0
     hostname: prometheus
@@ -113,6 +137,8 @@ services:
     depends_on:
       kafka1:
         condition: service_healthy
+      pushgateway:
+        condition: service_started
     ports:
       - "19090:9090"
     volumes:
@@ -135,13 +161,12 @@ services:
 
   perf-producer:
     profiles: [perf]
-    image: confluentinc/cp-kafka:7.6.1
+    <<: [*perf-build, *perf-deps, *perf-volumes]
+    hostname: perf-producer
     networks: [kafka-perf-net]
-    <<: *perf-deps
-    volumes:
-      - ./client-configs:/client-configs:ro
-      - ./scripts:/scripts:ro
     environment:
+      <<: *perf-metrics-env
+      METRICS_INSTANCE: perf-producer
       BOOTSTRAP: kafka1:29092,kafka2:29092,kafka3:29092
       SCENARIO: throughput
       TOPIC: perf.test
@@ -152,13 +177,12 @@ services:
 
   perf-consumer:
     profiles: [perf]
-    image: confluentinc/cp-kafka:7.6.1
+    <<: [*perf-build, *perf-deps, *perf-volumes]
+    hostname: perf-consumer
     networks: [kafka-perf-net]
-    <<: *perf-deps
-    volumes:
-      - ./client-configs:/client-configs:ro
-      - ./scripts:/scripts:ro
     environment:
+      <<: *perf-metrics-env
+      METRICS_INSTANCE: perf-consumer
       BOOTSTRAP: kafka1:29092,kafka2:29092,kafka3:29092
       SCENARIO: throughput
       TOPIC: perf.test
@@ -169,13 +193,12 @@ services:
 
   perf-e2e-latency:
     profiles: [perf]
-    image: confluentinc/cp-kafka:7.6.1
+    <<: [*perf-build, *perf-deps, *perf-volumes]
+    hostname: perf-e2e-latency
     networks: [kafka-perf-net]
-    <<: *perf-deps
-    volumes:
-      - ./client-configs:/client-configs:ro
-      - ./scripts:/scripts:ro
     environment:
+      <<: *perf-metrics-env
+      METRICS_INSTANCE: perf-e2e-latency
       BOOTSTRAP: kafka1:29092,kafka2:29092,kafka3:29092
       SCENARIO: latency
       TOPIC: perf.test
