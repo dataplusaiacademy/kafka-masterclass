@@ -1,0 +1,200 @@
+name: kafka-connect
+
+x-python-build: &python-build
+  context: ./python
+  dockerfile: Dockerfile
+
+networks:
+  kafka-connect-net:
+    driver: bridge
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    hostname: kafka
+    networks: [kafka-connect-net]
+    ports:
+      # Default host bindings avoid clashes with module 01 (localhost:9092/8081) when both stacks run.
+      - "29092:9092"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM3Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      # PLAINTEXT for host tools; PLAINTEXT_INTERNAL for services on kafka-connect-net (matches 01_Kafka_Clients).
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:29092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Debezium and Connect rely on CREATE_TOPICS behaviour for CDC metadata topics during first boot.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.6.1
+    hostname: schema-registry
+    networks: [kafka-connect-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "28081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    hostname: postgres
+    networks: [kafka-connect-net]
+    ports:
+      - "55432:5432"
+    environment:
+      POSTGRES_DB: demo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=8"
+      - "-c"
+      - "max_wal_senders=8"
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  mysql:
+    image: mysql:8.4
+    hostname: mysql
+    networks: [kafka-connect-net]
+    ports:
+      - "53306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: connect_demo
+      MYSQL_DATABASE: sink
+    volumes:
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    command: ["--log_bin_trust_function_creators=1", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-pconnect_demo"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 25s
+
+  kafka-connect:
+    build:
+      context: ./connect
+      dockerfile: Dockerfile
+    hostname: kafka-connect
+    networks: [kafka-connect-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "28083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_REST_PORT: "8083"
+      CONNECT_GROUP_ID: connect-cluster-kafka-connect-lab
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-demo-config
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-demo-offset
+      CONNECT_STATUS_STORAGE_TOPIC: connect-demo-status
+      CONNECT_KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
+      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 35s
+
+  register-connectors:
+    image: curlimages/curl:8.7.1
+    networks: [kafka-connect-net]
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./scripts/register-connectors.sh:/register-connectors.sh:ro
+    entrypoint: ["/bin/sh", "/register-connectors.sh"]
+    restart: "no"
+
+  fake-seed:
+    profiles: [tools]
+    build: *python-build
+    networks: [kafka-connect-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: demo
+      FAKE_ROWS: "25"
+    command: ["python", "seed_orders.py"]
+
+  topic-consumer:
+    profiles: [tools]
+    build: *python-build
+    networks: [kafka-connect-net]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      SOURCE_TOPIC: demo.public.orders
+      CONSUMER_GROUP_ID: python-cdc-lab
+      AUTO_OFFSET_RESET: earliest
+      CONSUME_MAX_MESSAGES: "20"
+      CONSUME_POLL_TIMEOUT_SEC: "1.5"
+      CONSUME_MAX_WAIT_SEC: "120"
+    command: ["python", "consume_cdc_topic.py"]

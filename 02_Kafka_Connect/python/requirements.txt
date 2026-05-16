@@ -1,0 +1,4 @@
+confluent-kafka[schema-registry]==2.5.3
+fastavro==1.9.5
+faker==26.0.0
+psycopg2-binary==2.9.9
