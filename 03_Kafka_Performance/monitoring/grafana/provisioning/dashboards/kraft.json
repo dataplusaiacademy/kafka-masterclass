@@ -123,7 +123,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "max(kafka_server_raft_metrics_high_watermark{env=\"dev\", job=\"kafka-controller\"})"
+              "options": "max(kafka_server_raft_metrics_high_watermark{env=\"dev\", job=\"kafka-broker\"})"
             },
             "properties": [
               {
@@ -135,7 +135,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "max(kafka_server_raft_metrics_high_watermark{env=\"dev\", job=\"kafka-controller\"})"
+              "options": "max(kafka_server_raft_metrics_high_watermark{env=\"dev\", job=\"kafka-broker\"})"
             },
             "properties": [
               {
@@ -201,7 +201,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max(kafka_server_raft_metrics_high_watermark{env=\"$env\", job=\"kafka-controller\"})",
+          "expr": "max(kafka_server_raft_metrics_high_watermark{env=\"$env\", job=\"kafka-broker\"})",
           "interval": "",
           "legendFormat": "__auto",
           "range": true,
@@ -291,7 +291,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(kafka_controller_kafkacontroller_activebrokercount{env=\"$env\", job=\"kafka-controller\"})/count(kafka_controller_kafkacontroller_activebrokercount{env=\"$env\", job=\"kafka-controller\"})",
+          "expr": "sum(kafka_controller_kafkacontroller_activebrokercount{env=\"$env\", job=\"kafka-broker\"})/count(kafka_controller_kafkacontroller_activebrokercount{env=\"$env\", job=\"kafka-broker\"})",
           "interval": "",
           "legendFormat": "__auto",
           "range": true,
@@ -372,7 +372,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max(kafka_controller_kafkacontroller_fencedbrokercount{env=\"$env\", job=\"kafka-controller\"})",
+          "expr": "max(kafka_controller_kafkacontroller_fencedbrokercount{env=\"$env\", job=\"kafka-broker\"})",
           "interval": "",
           "legendFormat": "__auto",
           "range": true,
@@ -493,7 +493,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_controller_kafkacontroller_activebrokercount{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_controller_kafkacontroller_activebrokercount{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -597,7 +597,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(kafka_server_raft_metrics_current_leader{env=\"$env\", job=\"kafka-controller\"})/count(kafka_server_raft_metrics_current_leader{env=\"$env\", job=\"kafka-controller\"})",
+          "expr": "sum(kafka_server_raft_metrics_current_leader{env=\"$env\", job=\"kafka-broker\"})/count(kafka_server_raft_metrics_current_leader{env=\"$env\", job=\"kafka-broker\"})",
           "interval": "",
           "legendFormat": "__auto",
           "range": true,
@@ -682,7 +682,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max(kafka_server_raft_metrics_current_epoch{env=\"$env\", job=\"kafka-controller\"})",
+          "expr": "max(kafka_server_raft_metrics_current_epoch{env=\"$env\", job=\"kafka-broker\"})",
           "interval": "",
           "legendFormat": "__auto",
           "range": true,
@@ -759,7 +759,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max(kafka_controller_kafkacontroller_metadataerrorcount{env=\"$env\", job=\"kafka-controller\"})",
+          "expr": "max(kafka_controller_kafkacontroller_metadataerrorcount{env=\"$env\", job=\"kafka-broker\"})",
           "interval": "",
           "legendFormat": "__auto",
           "range": true,
@@ -873,7 +873,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_controller_kafkacontroller_lastappliedrecordlagms{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_controller_kafkacontroller_lastappliedrecordlagms{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -987,7 +987,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_server_raft_metrics_election_latency_max{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_server_raft_metrics_election_latency_max{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -1101,7 +1101,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_server_raft_metrics_append_records_rate{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_server_raft_metrics_append_records_rate{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -1215,7 +1215,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_server_raft_metrics_commit_latency_avg{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_server_raft_metrics_commit_latency_avg{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -1329,7 +1329,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_server_raft_metrics_fetch_records_rate{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_server_raft_metrics_fetch_records_rate{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -1443,7 +1443,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_server_raft_metrics_fetch_records_rate{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_server_raft_metrics_fetch_records_rate{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -1557,7 +1557,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_controller_controllereventmanager_eventqueuetimems{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_controller_controllereventmanager_eventqueuetimems{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}} - quantile: {{quantile}}",
           "range": true,
@@ -1671,7 +1671,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "kafka_controller_controllereventmanager_eventqueueprocessingtimems{env=\"$env\", job=\"kafka-controller\"}",
+          "expr": "kafka_controller_controllereventmanager_eventqueueprocessingtimems{env=\"$env\", job=\"kafka-broker\"}",
           "interval": "",
           "legendFormat": "{{instance}} - quantile: {{quantile}}",
           "range": true,
@@ -1794,7 +1794,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "irate(process_cpu_seconds_total{job=\"kafka-controller\",env=\"$env\"}[5m])*100",
+          "expr": "irate(process_cpu_seconds_total{job=\"kafka-broker\",env=\"$env\"}[5m])*100",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
@@ -1894,7 +1894,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum without(area)(jvm_memory_used_bytes{job=\"kafka-controller\",env=\"$env\"})",
+          "expr": "sum without(area)(jvm_memory_used_bytes{job=\"kafka-broker\",env=\"$env\"})",
           "interval": "",
           "legendFormat": "Used:{{instance}}",
           "range": true,
@@ -1906,7 +1906,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "jvm_memory_bytes_max{job=\"kafka-controller\",env=\"$env\",area=\"heap\"}",
+          "expr": "jvm_memory_bytes_max{job=\"kafka-broker\",env=\"$env\",area=\"heap\"}",
           "interval": "",
           "legendFormat": "Max:{{instance}}",
           "range": true,
@@ -2007,7 +2007,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum without(gc)(rate(jvm_gc_collection_seconds_sum{job=\"kafka-controller\",env=\"$env\"}[5m]))",
+          "expr": "sum without(gc)(rate(jvm_gc_collection_seconds_sum{job=\"kafka-broker\",env=\"$env\"}[5m]))",
           "interval": "",
           "legendFormat": "{{instance}}",
           "range": true,
